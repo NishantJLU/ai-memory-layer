@@ -7,28 +7,32 @@ While tools like Mem0 and Supermemory provide generic graph/vector memory for ag
 1. **Zero Lock-In:** Run entirely locally using `sentence-transformers` and Ollama, or scale up with OpenAI/Anthropic.
 2. **Architectural Understanding:** We don't just store chat logs. We ingest Git history, auto-detect conflicts between old and new decisions, and extract structured taxonomy (`episodic`, `semantic`, `procedural`).
 3. **Multi-Tenant & Secure:** Built from Day 1 with Project/User IDs and X-API-Key authentication. No more open vectors.
-4. **Hybrid Recency Scoring:** A 2-year-old memory shouldn't override yesterday's decision. We score memories using a hybrid of cosine similarity and exponential recency decay.
+4. **True Hybrid Search (BM25 + Vector):** Pure vector search often misses specific keywords. We use a hybrid approach combining **PostgreSQL Full-Text Search (tsvector)** with **pgvector** and exponential recency decay to ensure the most relevant and fresh context is surfaced.
 
 ## Architecture
 ```mermaid
 graph TD
     A[Git / Conversations] -->|Ingest + Dedupe Hash| B(Ingestion Pipeline)
     B -->|Summarize & Detect Conflicts| C{LLM: Local/OpenAI/Anthropic}
-    C -->|Vector + Rich Metadata| D[(Postgres + pgvector)]
+    C -->|Vector + Keyword + Metadata| D[(Postgres + pgvector + tsvector)]
     E[Agent: Claude/Cursor] -->|MCP / REST| F(Retrieval Engine)
-    F -->|Hybrid Search: Vector + Recency| D
+    F -->|Hybrid Search: BM25 + Vector + Recency| D
     D -->|Ranked Memories| F
     F -->|Contextual Response| E
 ```
 
 ## Features
 - **Multi-LLM Support:** Toggle between OpenAI, Anthropic, or fully Local (`sentence-transformers`) via `.env`.
-- **API Authentication:** Protected REST endpoints requiring `X-API-Key`.
-- **Smart Deduplication:** Content hashing (SHA256) prevents duplicate memories when re-ingesting repos.
-- **Conflict Detection:** AI automatically flags if a new memory contradicts an existing architectural decision.
-- **Memory Dashboard:** A built-in React UI (`/dashboard`) showing memory health, conflicts, and module coverage.
-- **Expanded MCP Server:** Agents can `recall_memory`, actively `store_memory`, `list_recent_memories`, and `flag_contradiction`.
-- **Python SDK:** Lightweight client for easy integration into your own Python tools.
+- **Hybrid Search Engine:** Combined keyword (BM25) and semantic (Vector) search with recency-weighted ranking.
+- **Enterprise Security:** API Key authentication (`X-API-Key`) and multi-tenant scoping via `project_id`.
+- **Smart Deduplication:** SHA256 content hashing prevents redundant memories during repo re-ingestion.
+- **Conflict Detection:** Proactive AI flagging of contradictory architectural decisions.
+- **Advanced MCP Tools:**
+    - `recall_memory`: Semantic + Keyword recall.
+    - `store_memory`: Mid-conversation manual memory capture.
+    - `list_recent_memories`: Module-specific recency audit.
+    - `flag_contradiction`: Mark obsolete or conflicting memories.
+- **Memory Dashboard:** Built-in React UI (`/dashboard`) with module coverage heatmaps and health alerts.
 
 ## Setup Instructions
 
