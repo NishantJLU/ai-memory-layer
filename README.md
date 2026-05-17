@@ -3,11 +3,29 @@
 This repository contains the MVP implementation of the **AI Memory Layer**, a "Postgres for AI agent memory." It is designed to run as a backend service providing long-term semantic memory to coding agents like Claude Code, Cursor, and Copilot.
 
 ## Architecture
+```mermaid
+graph TD
+    A[Git Repository] -->|Commit Parser| B(Ingestion Pipeline)
+    B -->|Summarize Decisions| C{LLM: GPT-4o-mini}
+    C -->|Store Vector + Metadata| D[(Postgres + pgvector)]
+    E[Coding Agent: Claude/Cursor] -->|Recall Query| F(Retrieval Engine)
+    F -->|Semantic Search| D
+    D -->|Relevant Memories| F
+    F -->|Contextual Response| E
+    G[REST API / MCP] --> F
+```
+
 - **API Server:** Built with FastAPI (`src/main.py`)
 - **Database:** PostgreSQL with `pgvector` for vector embeddings (`src/database.py`, `src/models.py`)
 - **Ingestion Pipeline:** Uses `gitpython` and OpenAI's API to extract and summarize architectural decisions from git commits (`src/ingest.py`).
 - **Retrieval Engine:** Semantic search via cosine distance using `pgvector` and OpenAI's `text-embedding-3-small` (`src/recall.py`).
 - **MCP Server:** Exposes memory retrieval directly as a Model Context Protocol (MCP) tool (`src/mcp_server.py`).
+
+## Core Memory Types
+1. **Episodic**: Past bug fixes and decision reasoning from git history.
+2. **Semantic**: Module responsibilities and architectural intent.
+3. **Procedural**: Team-specific coding standards extracted from diff patterns.
+4. **Working**: Real-time context surfaced via MCP during active coding.
 
 ## Setup Instructions
 
