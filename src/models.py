@@ -1,5 +1,5 @@
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, Float, Boolean, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, Float, Boolean, UniqueConstraint, Computed, Index
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from pgvector.sqlalchemy import Vector
 from src.database import Base
 
@@ -29,9 +29,13 @@ class Memory(Base):
     tags = Column(JSON, nullable=True)
 
     # Note: Using 384 for local models (all-MiniLM-L6-v2), or 1536 for OpenAI.
-    # To support dynamic sizes, we omit the dimension constraint in the model.
     embedding = Column(Vector, nullable=False)
+    
+    # TSVector for full-text search (BM25 equivalent in Postgres)
+    # We use Computed to auto-populate it from the content
+    search_vector = Column(TSVECTOR, Computed("to_tsvector('english', content)", persisted=True))
 
     __table_args__ = (
         UniqueConstraint('project_id', 'content_hash', name='uq_project_content_hash'),
+        Index('ix_memories_search_vector', 'search_vector', postgresql_using='gin'),
     )

@@ -1,9 +1,11 @@
 import os
 import math
 from datetime import datetime
+from sqlalchemy import func, or_
 from src.database import get_db
 from src.models import Memory
 from src.providers import get_embedding
+
 
 def calculate_recency_score(memory_date: datetime, decay_rate: float = 0.01) -> float:
     """
@@ -11,54 +13,72 @@ def calculate_recency_score(memory_date: datetime, decay_rate: float = 0.01) -> 
     decay_rate of 0.01 means ~1% decay per day.
     """
     if not memory_date:
-        return 0.5 # Unknown age gets middle penalty
-        
+        return 0.5  # Unknown age gets middle penalty
+
     days_old = (datetime.utcnow() - memory_date).days
     if days_old < 0:
         days_old = 0
-        
+
     # Exponential decay: e^(-decay_rate * days_old)
     return math.exp(-decay_rate * days_old)
 
 
 def recall_memories(query: str, project_id: str = "default", limit: int = 5) -> list[dict]:
     """
-    Searches the memory layer for relevant past decisions using hybrid scoring.
-    Score = (1 - Cosine Distance) * Recency Score * Confidence
+    Searches the memory layer for relevant past decisions using HYBRID search.
+    Combining Vector Similarity (pgvector) + Full-Text Search (tsvector/BM25)
+    + Recency Decay.
     """
     db = next(get_db())
     try:
         query_embedding = get_embedding(query)
 
-        # 1. Fetch top candidates by pure vector similarity (broad net)
-        # We fetch 3x the limit so we have room to re-rank
-        candidates = db.query(Memory).filter(
+        # Build Full-Text Query
+        # We transform the query into a websearch_to_tsquery or plainto_tsquery
+        ft_query = func.websearch_to_tsquery('english', query)
+
+        # 1. Broad Fetch: Candidates from either Vector or Full-Text Match
+        # In Postgres, we can combine these scores.
+        # We fetch 3x limit to re-rank.
+        
+        # Calculate scores in the query for performance
+        # Vector score: 1 - distance
+        vector_score = (1 - Memory.embedding.cosine_distance(query_embedding))
+        # Text score: ts_rank (normalized 0 to 1)
+        text_score = func.ts_rank(Memory.search_vector, ft_query)
+
+        # Filter by project and (vector similarity OR keyword match)
+        candidates = db.query(
+            Memory,
+            vector_score.label("v_score"),
+            text_score.label("t_score")
+        ).filter(
             Memory.project_id == project_id
-        ).order_by(
-            Memory.embedding.cosine_distance(query_embedding)
-        ).limit(limit * 3).all()
+        ).filter(
+            or_(
+                Memory.embedding.cosine_distance(query_embedding) < 0.5, # High vector match
+                Memory.search_vector.op('@@')(ft_query)                 # OR Keyword match
+            )
+        ).all()
 
         scored_memories = []
-        for mem in candidates:
-            # Re-calculate distance in Python (or use the returned DB value if configured)
-            # For simplicity, we just use a basic distance proxy or rely on DB order.
-            # In a full production setup, pgvector returns the distance in the query.
-            # Here we just apply recency to re-rank the already sorted candidates.
-            
+        for mem, v_s, t_s in candidates:
             recency = calculate_recency_score(mem.date)
             confidence = mem.confidence
             
-            # Since they are ordered by similarity, we give a base rank score
-            # A true hybrid search would compute exact dot product here.
+            # Hybrid Calculation (RRF or simple weighted average)
+            # We give Vector a higher weight (0.7) and Keywords (0.3)
+            # Then apply recency and confidence.
+            base_score = (v_s * 0.7) + (t_s * 0.3)
+            final_score = base_score * recency * confidence
             
             scored_memories.append({
                 "mem": mem,
-                "recency_multiplier": recency * confidence
+                "score": final_score
             })
             
-        # Re-rank (simplistic approach: candidates are already good, we just push fresh/confident ones up)
-        # For a true hybrid we'd need the exact distance from pgvector. 
-        scored_memories.sort(key=lambda x: x["recency_multiplier"], reverse=True)
+        # Re-rank by combined score
+        scored_memories.sort(key=lambda x: x["score"], reverse=True)
         
         final_results = [x["mem"] for x in scored_memories[:limit]]
 
