@@ -40,7 +40,7 @@ def run_test_harness():
     # 3. Run ingestion
     print(f"\n2. Running Ingestion on {test_repo_path} (limit 5 commits)...")
     try:
-        count = ingest_repository(test_repo_path, max_commits=5)
+        count = ingest_repository(test_repo_path, project_id="test_harness", max_commits=5)
         print(f"Ingestion complete. Extracted {count} memories.")
     except Exception as e:
         print(f"Ingestion failed: {e}")
@@ -59,7 +59,7 @@ def run_test_harness():
 
     for query in test_queries:
         print(f"\nQuery: '{query}'")
-        results = recall_memories(query, limit=2)
+        results = recall_memories(query, project_id="test_harness", limit=2)
         if not results:
             print("  -> No results found.")
         else:

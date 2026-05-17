@@ -1,42 +1,43 @@
-# AI Memory Layer (Phase 1)
+# AI Memory Layer
 
-This repository contains the MVP implementation of the **AI Memory Layer**, a "Postgres for AI agent memory." It is designed to run as a backend service providing long-term semantic memory to coding agents like Claude Code, Cursor, and Copilot.
+The **AI Memory Layer** is a production-ready "Postgres for AI agent memory." It is designed to run as a backend service providing secure, multi-tenant, long-term semantic memory to coding agents like Claude Code, Cursor, and Copilot.
+
+## Why AI Memory Layer? (vs. Mem0 / Supermemory)
+While tools like Mem0 and Supermemory provide generic graph/vector memory for agents, **AI Memory Layer is purpose-built for enterprise software teams:**
+1. **Zero Lock-In:** Run entirely locally using `sentence-transformers` and Ollama, or scale up with OpenAI/Anthropic.
+2. **Architectural Understanding:** We don't just store chat logs. We ingest Git history, auto-detect conflicts between old and new decisions, and extract structured taxonomy (`episodic`, `semantic`, `procedural`).
+3. **Multi-Tenant & Secure:** Built from Day 1 with Project/User IDs and X-API-Key authentication. No more open vectors.
+4. **Hybrid Recency Scoring:** A 2-year-old memory shouldn't override yesterday's decision. We score memories using a hybrid of cosine similarity and exponential recency decay.
 
 ## Architecture
 ```mermaid
 graph TD
-    A[Git Repository] -->|Commit Parser| B(Ingestion Pipeline)
-    B -->|Summarize Decisions| C{LLM: GPT-4o-mini}
-    C -->|Store Vector + Metadata| D[(Postgres + pgvector)]
-    E[Coding Agent: Claude/Cursor] -->|Recall Query| F(Retrieval Engine)
-    F -->|Semantic Search| D
-    D -->|Relevant Memories| F
+    A[Git / Conversations] -->|Ingest + Dedupe Hash| B(Ingestion Pipeline)
+    B -->|Summarize & Detect Conflicts| C{LLM: Local/OpenAI/Anthropic}
+    C -->|Vector + Rich Metadata| D[(Postgres + pgvector)]
+    E[Agent: Claude/Cursor] -->|MCP / REST| F(Retrieval Engine)
+    F -->|Hybrid Search: Vector + Recency| D
+    D -->|Ranked Memories| F
     F -->|Contextual Response| E
-    G[REST API / MCP] --> F
 ```
 
-- **API Server:** Built with FastAPI (`src/main.py`)
-- **Database:** PostgreSQL with `pgvector` for vector embeddings (`src/database.py`, `src/models.py`)
-- **Ingestion Pipeline:** Uses `gitpython` and OpenAI's API to extract and summarize architectural decisions from git commits (`src/ingest.py`).
-- **Retrieval Engine:** Semantic search via cosine distance using `pgvector` and OpenAI's `text-embedding-3-small` (`src/recall.py`).
-- **MCP Server:** Exposes memory retrieval directly as a Model Context Protocol (MCP) tool (`src/mcp_server.py`).
-
-## Core Memory Types
-1. **Episodic**: Past bug fixes and decision reasoning from git history.
-2. **Semantic**: Module responsibilities and architectural intent.
-3. **Procedural**: Team-specific coding standards extracted from diff patterns.
-4. **Working**: Real-time context surfaced via MCP during active coding.
+## Features
+- **Multi-LLM Support:** Toggle between OpenAI, Anthropic, or fully Local (`sentence-transformers`) via `.env`.
+- **API Authentication:** Protected REST endpoints requiring `X-API-Key`.
+- **Smart Deduplication:** Content hashing (SHA256) prevents duplicate memories when re-ingesting repos.
+- **Conflict Detection:** AI automatically flags if a new memory contradicts an existing architectural decision.
+- **Memory Dashboard:** A built-in React UI (`/dashboard`) showing memory health, conflicts, and module coverage.
+- **Expanded MCP Server:** Agents can `recall_memory`, actively `store_memory`, `list_recent_memories`, and `flag_contradiction`.
+- **Python SDK:** Lightweight client for easy integration into your own Python tools.
 
 ## Setup Instructions
 
 1. **Start the Database**
-   We use the `ankane/pgvector` image to provide PostgreSQL with the `pgvector` extension pre-installed.
    ```bash
    docker-compose up -d
    ```
 
 2. **Install Dependencies**
-   It's recommended to use a virtual environment.
    ```bash
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -44,34 +45,43 @@ graph TD
    ```
 
 3. **Configure Environment**
-   Copy `.env.example` to `.env` and fill in your OpenAI API Key.
-   ```bash
-   cp .env.example .env
-   ```
+   Copy `.env.example` to `.env` and set your API keys and provider preferences.
 
 ## Usage
 
-### 1. Test Harness (Quick Start)
-Run the built-in test harness to initialize the DB, ingest local git commits, and test semantic recall.
-```bash
-python tests/harness.py
-```
-
-### 2. Start the API Server
-Provides `/ingest` and `/recall` endpoints.
+### 1. The Dashboard
+Run the server and visit `http://localhost:8000/dashboard` to see the React-based memory health heatmap.
 ```bash
 uvicorn src.main:app --reload --port 8000
 ```
-- API Docs: `http://localhost:8000/docs`
 
-### 3. Start the MCP Server
-Run the MCP server to directly expose the `recall_memory` tool to compatible clients.
+### 2. Python SDK
+```python
+from sdk import MemoryClient
+
+client = MemoryClient(base_url="http://localhost:8000", api_key="my-dev-api-key-123")
+
+# Ingest a repo
+client.ingest("/path/to/repo", project_id="acme-backend")
+
+# Ask the AI brain
+memories = client.recall("Why did we choose Kafka?", project_id="acme-backend")
+for m in memories:
+    print(f"Confidence: {m['confidence']} | {m['content']}")
+```
+
+### 3. MCP Server (For Cursor/Claude Desktop)
+Configure your agent to run:
 ```bash
 python src/mcp_server.py
 ```
-*(Configure your agent, e.g., Cursor or Claude Desktop, to point to this script as an MCP stdio server).*
 
-## Next Steps (Phase 2 & Beyond)
-- Implement conflict detection between contradictory memories.
-- Add graph relationships (e.g. Neo4j/Kuzu) to map dependencies.
-- Build the web dashboard for team-wide memory visibility.
+### 4. Running Tests
+We use `pytest` for automated testing.
+```bash
+python -m pytest tests/
+```
+
+## Next Steps
+- Add GitHub Webhook integration for automatic PR/Issue ingestion.
+- Implement graph-based relationship mappings (e.g., Module A depends on Module B).

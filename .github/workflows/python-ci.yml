@@ -11,6 +11,21 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: ankane/pgvector:v0.5.1
+        env:
+          POSTGRES_USER: memory_user
+          POSTGRES_PASSWORD: memory_password
+          POSTGRES_DB: memory_layer
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.10
@@ -28,4 +43,6 @@ jobs:
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    # Note: Testing requires a Postgres DB with pgvector, which we would setup with a service container in a full CI
+    - name: Run tests with pytest
+      run: |
+        python -m pytest tests/
