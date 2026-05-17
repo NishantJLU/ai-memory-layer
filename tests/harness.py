@@ -8,9 +8,9 @@ from sqlalchemy import text
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
-from src.database import Base, engine # noqa: E402
-from src.ingest import ingest_repository # noqa: E402
-from src.recall import recall_memories # noqa: E402
+from src.database import Base, engine  # noqa: E402
+from src.ingest import ingest_repository  # noqa: E402
+from src.recall import recall_memories  # noqa: E402
 
 
 def run_test_harness():
