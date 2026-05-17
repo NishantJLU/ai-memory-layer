@@ -1,5 +1,3 @@
-import os
-from datetime import datetime
 from mcp.server.fastmcp import FastMCP
 from src.recall import recall_memories
 from src.database import get_db
@@ -45,7 +43,7 @@ def store_memory(content: str, memory_type: str, module: str, project_id: str = 
     db = next(get_db())
     try:
         content_hash = generate_content_hash(project_id, "direct", content)
-        
+
         # Check if already exists
         existing = db.query(Memory).filter(Memory.content_hash == content_hash).first()
         if existing:
@@ -83,16 +81,16 @@ def list_recent_memories(project_id: str = "default", module: str = None, limit:
         query = db.query(Memory).filter(Memory.project_id == project_id)
         if module:
             query = query.filter(Memory.module == module)
-            
+
         memories = query.order_by(Memory.date.desc()).limit(limit).all()
-        
+
         if not memories:
             return "No recent memories found."
-            
+
         formatted = [f"Recent Memories for {module or 'all modules'}:"]
         for mem in memories:
             formatted.append(f"- [{mem.date.strftime('%Y-%m-%d')}] (ID: {mem.id}) {mem.content[:100]}...")
-            
+
         return "\n".join(formatted)
     except Exception as e:
         return f"Error listing memories: {e}"
@@ -109,14 +107,14 @@ def flag_contradiction(memory_id: int, reason: str) -> str:
         memory = db.query(Memory).filter(Memory.id == memory_id).first()
         if not memory:
             return f"Memory ID {memory_id} not found."
-            
+
         memory.confidence = max(0.1, memory.confidence - 0.5)
-        
+
         # Append to tags safely
         current_tags = list(memory.tags) if memory.tags else []
         current_tags.append(f"conflict: {reason}")
         memory.tags = current_tags
-        
+
         db.commit()
         return f"Memory {memory_id} flagged for contradiction. Confidence lowered."
     except Exception as e:

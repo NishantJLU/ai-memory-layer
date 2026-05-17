@@ -1,4 +1,3 @@
-import os
 import math
 from datetime import datetime
 from sqlalchemy import func, or_
@@ -34,17 +33,11 @@ def recall_memories(query: str, project_id: str = "default", limit: int = 5) -> 
         query_embedding = get_embedding(query)
 
         # Build Full-Text Query
-        # We transform the query into a websearch_to_tsquery or plainto_tsquery
         ft_query = func.websearch_to_tsquery('english', query)
 
-        # 1. Broad Fetch: Candidates from either Vector or Full-Text Match
-        # In Postgres, we can combine these scores.
-        # We fetch 3x limit to re-rank.
-        
+        # Broad Fetch: Candidates from either Vector or Full-Text Match
         # Calculate scores in the query for performance
-        # Vector score: 1 - distance
         vector_score = (1 - Memory.embedding.cosine_distance(query_embedding))
-        # Text score: ts_rank (normalized 0 to 1)
         text_score = func.ts_rank(Memory.search_vector, ft_query)
 
         # Filter by project and (vector similarity OR keyword match)
@@ -56,8 +49,8 @@ def recall_memories(query: str, project_id: str = "default", limit: int = 5) -> 
             Memory.project_id == project_id
         ).filter(
             or_(
-                Memory.embedding.cosine_distance(query_embedding) < 0.5, # High vector match
-                Memory.search_vector.op('@@')(ft_query)                 # OR Keyword match
+                Memory.embedding.cosine_distance(query_embedding) < 0.5,  # High vector match
+                Memory.search_vector.op('@@')(ft_query)                  # OR Keyword match
             )
         ).all()
 
@@ -65,21 +58,20 @@ def recall_memories(query: str, project_id: str = "default", limit: int = 5) -> 
         for mem, v_s, t_s in candidates:
             recency = calculate_recency_score(mem.date)
             confidence = mem.confidence
-            
-            # Hybrid Calculation (RRF or simple weighted average)
-            # We give Vector a higher weight (0.7) and Keywords (0.3)
-            # Then apply recency and confidence.
+
+            # Hybrid Calculation
+            # Vector (0.7) and Keywords (0.3)
             base_score = (v_s * 0.7) + (t_s * 0.3)
             final_score = base_score * recency * confidence
-            
+
             scored_memories.append({
                 "mem": mem,
                 "score": final_score
             })
-            
+
         # Re-rank by combined score
         scored_memories.sort(key=lambda x: x["score"], reverse=True)
-        
+
         final_results = [x["mem"] for x in scored_memories[:limit]]
 
         memories = []

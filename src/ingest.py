@@ -1,4 +1,3 @@
-import os
 import json
 import hashlib
 from datetime import datetime
@@ -24,20 +23,20 @@ def detect_conflict(new_memory_text: str, project_id: str) -> str | None:
     past_memories = recall_memories(new_memory_text, project_id=project_id, limit=2)
     if not past_memories:
         return None
-        
+
     context = "\n".join([m['content'] for m in past_memories])
     prompt = f"""
     You are an AI assistant checking for architectural contradictions.
     New Decision: {new_memory_text}
-    
+
     Existing Decisions:
     {context}
-    
+
     Does the New Decision strictly contradict or override the Existing Decisions?
     If yes, explain why in one sentence.
     If no, reply exactly with "NO_CONFLICT".
     """
-    
+
     result = generate_summary(prompt, "You are a strict architectural reviewer.")
     if "NO_CONFLICT" in result:
         return None
@@ -65,15 +64,15 @@ Diff snippet (truncated to 2000 chars):
 {diff[:2000]}
     """
 
-    content = generate_summary(prompt, "You are an expert AI software architect extracting memories from git histories. Always reply in valid JSON.")
-    
+    content = generate_summary(prompt, "You are an expert AI architect. Always reply in valid JSON.")
+
     try:
         # Sometimes LLMs wrap JSON in markdown blocks
         if content.startswith("```json"):
             content = content[7:-3]
         elif content.startswith("```"):
             content = content[3:-3]
-            
+
         data = json.loads(content.strip())
         if data.get("memory") == "NO_MEMORY":
             return None
@@ -104,14 +103,14 @@ def ingest_repository(repo_path: str, project_id: str = "default", max_commits: 
                 summary = structured_data.get("memory")
                 mem_type = structured_data.get("memory_type", "episodic")
                 module = structured_data.get("module", "unknown")
-                
+
                 content_hash = generate_content_hash(project_id, commit.hexsha, summary)
-                
+
                 # Deduplication check
                 existing = db.query(Memory).filter(Memory.content_hash == content_hash).first()
                 if existing:
                     continue
-                
+
                 # Conflict Check
                 conflict_reason = detect_conflict(summary, project_id)
                 confidence = 0.5 if conflict_reason else 1.0
@@ -140,7 +139,7 @@ def ingest_repository(repo_path: str, project_id: str = "default", max_commits: 
                 print(f"Ingested commit {commit.hexsha[:7]}: {summary[:50]}...")
                 if conflict_reason:
                     print(f"  -> WARNING: Conflict detected: {conflict_reason}")
-                    
+
         except IntegrityError:
             # DB level deduplication catch
             db.rollback()
