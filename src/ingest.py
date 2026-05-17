@@ -10,12 +10,14 @@ load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+
 def get_embedding(text: str) -> list[float]:
     response = client.embeddings.create(
         input=text,
         model="text-embedding-3-small"
     )
     return response.data[0].embedding
+
 
 def summarize_commit(commit_msg: str, diff: str) -> str | None:
     """
@@ -34,33 +36,34 @@ Commit Message:
 Diff snippet (truncated to 2000 chars):
 {diff[:2000]}
     """
-    
+
     response = client.chat.completions.create(
-        model="gpt-4o-mini", # using a smaller model for speed/cost
+        model="gpt-4o-mini",  # using a smaller model for speed/cost
         messages=[
-            {"role": "system", "content": "You are an expert AI software architect extracting semantic memories from git histories."},
+            {"role": "system", "content": "You are an expert AI software architect extracting memories from git histories."},
             {"role": "user", "content": prompt}
         ],
         temperature=0.0
     )
-    
+
     content = response.choices[0].message.content.strip()
     if content == "NO_MEMORY" or "NO_MEMORY" in content:
         return None
     return content
 
+
 def ingest_repository(repo_path: str, max_commits: int = 10):
     db = next(get_db())
     repo = Repo(repo_path)
     commits = list(repo.iter_commits('HEAD', max_count=max_commits))
-    
+
     ingested_count = 0
     for commit in commits:
         # Check if already ingested
         existing = db.query(Memory).filter(Memory.commit_hash == commit.hexsha).first()
         if existing:
             continue
-            
+
         try:
             # We compare with its parent to get the diff
             if commit.parents:
@@ -69,16 +72,16 @@ def ingest_repository(repo_path: str, max_commits: int = 10):
             else:
                 # Initial commit
                 diff_text = repo.git.show(commit.hexsha)
-                
+
             summary = summarize_commit(commit.message, diff_text)
-            
+
             if summary:
                 # Extract touched files
                 touched_files = list(commit.stats.files.keys())
-                
+
                 # Get embedding
                 embedding = get_embedding(summary)
-                
+
                 # Store
                 memory = Memory(
                     commit_hash=commit.hexsha,
@@ -96,5 +99,5 @@ def ingest_repository(repo_path: str, max_commits: int = 10):
         except Exception as e:
             print(f"Failed to process commit {commit.hexsha}: {e}")
             db.rollback()
-            
+
     return ingested_count

@@ -1,8 +1,8 @@
-import json
 from mcp.server.fastmcp import FastMCP
 from src.recall import recall_memories
 
 mcp = FastMCP("MemoryLayer")
+
 
 @mcp.tool()
 def recall_memory(query: str, limit: int = 5) -> str:
@@ -12,10 +12,10 @@ def recall_memory(query: str, limit: int = 5) -> str:
     what conventions exist in the codebase, or how past bugs were resolved.
     """
     memories = recall_memories(query, limit)
-    
+
     if not memories:
         return "No relevant memories found."
-        
+
     formatted = []
     for mem in memories:
         formatted.append(
@@ -26,8 +26,9 @@ def recall_memory(query: str, limit: int = 5) -> str:
             f"Touched Files: {', '.join(mem['file_paths']) if mem['file_paths'] else 'None'}\n\n"
             f"Summary/Decision:\n{mem['content']}\n"
         )
-        
+
     return "\n".join(formatted)
+
 
 if __name__ == "__main__":
     # Start the MCP stdio server

@@ -8,12 +8,14 @@ load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+
 def get_embedding(text: str) -> list[float]:
     response = client.embeddings.create(
         input=text,
         model="text-embedding-3-small"
     )
     return response.data[0].embedding
+
 
 def recall_memories(query: str, limit: int = 5) -> list[dict]:
     """
@@ -22,12 +24,12 @@ def recall_memories(query: str, limit: int = 5) -> list[dict]:
     db = next(get_db())
     try:
         query_embedding = get_embedding(query)
-        
+
         # Use cosine distance for semantic search
         results = db.query(Memory).order_by(
             Memory.embedding.cosine_distance(query_embedding)
         ).limit(limit).all()
-        
+
         memories = []
         for mem in results:
             memories.append({
@@ -39,7 +41,7 @@ def recall_memories(query: str, limit: int = 5) -> list[dict]:
                 "date": mem.date.isoformat() if mem.date else None,
                 "tags": mem.tags,
             })
-            
+
         return memories
     except Exception as e:
         print(f"Error recalling memories: {e}")

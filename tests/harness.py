@@ -1,29 +1,29 @@
 import os
 import sys
 import time
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
+
 
 # Add src to python path so we can import modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.database import Base, engine
-from src.ingest import ingest_repository
-from src.recall import recall_memories
+
+from src.database import Base, engine # noqa: E402
+from src.ingest import ingest_repository # noqa: E402
+from src.recall import recall_memories # noqa: E402
+
 
 def run_test_harness():
     print("=== AI Memory Layer Test Harness ===")
-    
+
     # 1. Initialize database (assuming postgres is up via docker-compose)
     print("\n1. Initializing DB Tables...")
     try:
-        # Create extension if not exists (requires superuser typically, but assuming pgvector image does it)
-        # Using execute text directly on engine
-        from sqlalchemy import text
+        # Create extension if not exists
         with engine.connect() as conn:
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
             conn.commit()
-            
+
         Base.metadata.create_all(bind=engine)
         print("Database initialized successfully.")
     except Exception as e:
@@ -45,10 +45,10 @@ def run_test_harness():
     except Exception as e:
         print(f"Ingestion failed: {e}")
         return
-        
+
     # Wait for DB to settle
     time.sleep(1)
-    
+
     # 4. Test Recall
     print("\n3. Testing Recall Engine...")
     test_queries = [
@@ -56,7 +56,7 @@ def run_test_harness():
         "How is the MCP server set up?",
         "Did we make any decisions about the vector database used?"
     ]
-    
+
     for query in test_queries:
         print(f"\nQuery: '{query}'")
         results = recall_memories(query, limit=2)
@@ -66,8 +66,9 @@ def run_test_harness():
             for r in results:
                 print(f"  -> Score Match: {r['id']} (Commit: {r['commit_hash'][:7]})")
                 print(f"     {r['content'][:150]}...")
-                
+
     print("\n=== Test Harness Complete ===")
+
 
 if __name__ == "__main__":
     # Note: Make sure OPENAI_API_KEY is set in .env before running
