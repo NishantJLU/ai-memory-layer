@@ -1,13 +1,16 @@
 # AI Memory Layer
 
-The **AI Memory Layer** is a production-ready "Postgres for AI agent memory." It is designed to run as a backend service providing secure, multi-tenant, long-term semantic memory to coding agents like Claude Code, Cursor, and Copilot.
+![Python CI](https://github.com/NishantJLU/ai-memory-layer/actions/workflows/python-ci.yml/badge. those)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Why AI Memory Layer? (vs. Mem0 / Supermemory)
-While tools like Mem0 and Supermemory provide generic graph/vector memory for agents, **AI Memory Layer is purpose-built for enterprise software teams:**
-1. **Zero Lock-In:** Run entirely locally using `sentence-transformers` and Ollama, or scale up with OpenAI/Anthropic.
-2. **Architectural Understanding:** We don't just store chat logs. We ingest Git history, auto-detect conflicts between old and new decisions, and extract structured taxonomy (`episodic`, `semantic`, `procedural`).
-3. **Multi-Tenant & Secure:** Built from Day 1 with Project/User IDs and X-API-Key authentication. No more open vectors.
-4. **True Hybrid Search (BM25 + Vector):** Pure vector search often misses specific keywords. We use a hybrid approach combining **PostgreSQL Full-Text Search (tsvector)** with **pgvector** and exponential recency decay to ensure the most relevant and fresh context is surfaced.
+The **AI Memory Layer** is a production-ready "Postgres for AI agent memory." It provides a persistent, semantic, and secure infrastructure that gives any AI coding assistant (Cursor, Claude Code, Copilot) true long-term memory about your project and organization.
+
+## Why AI Memory Layer?
+While generic memory tools exist, **AI Memory Layer is purpose-built for enterprise software engineering:**
+1. **Zero Lock-In:** Run entirely locally using `sentence-transformers` and **Ollama**, or scale with OpenAI/Anthropic.
+2. **Architectural Intelligence:** We don't just store chat logs. We ingest Git history, auto-detect conflicts between decisions, and extract structured taxonomy (`episodic`, `semantic`, `procedural`).
+3. **Enterprise Security:** Built with Multi-Tenancy (`project_id`) and **X-API-Key authentication** from the start.
+4. **True Hybrid Search:** Combines **PostgreSQL Full-Text Search (tsvector)** for keywords with **pgvector** for semantics, ranked by an exponential recency decay.
 
 ## Architecture
 ```mermaid
@@ -21,71 +24,70 @@ graph TD
     F -->|Contextual Response| E
 ```
 
-## Features
-- **Multi-LLM Support:** Toggle between OpenAI, Anthropic, or fully Local (`sentence-transformers`) via `.env`.
-- **Hybrid Search Engine:** Combined keyword (BM25) and semantic (Vector) search with recency-weighted ranking.
-- **Enterprise Security:** API Key authentication (`X-API-Key`) and multi-tenant scoping via `project_id`.
+## Core Features
 - **Smart Deduplication:** SHA256 content hashing prevents redundant memories during repo re-ingestion.
-- **Conflict Detection:** Proactive AI flagging of contradictory architectural decisions.
+- **Conflict Detection:** AI automatically flags if a new decision contradicts a previous one.
 - **Advanced MCP Tools:**
     - `recall_memory`: Semantic + Keyword recall.
-    - `store_memory`: Mid-conversation manual memory capture.
-    - `list_recent_memories`: Module-specific recency audit.
-    - `flag_contradiction`: Mark obsolete or conflicting memories.
-- **Memory Dashboard:** Built-in React UI (`/dashboard`) with module coverage heatmaps and health alerts.
+    - `store_memory`: Manual capture mid-conversation.
+    - `list_recent_memories`: Scoped recency audit.
+    - `flag_contradiction`: Mark memories as obsolete.
+- **Memory Dashboard:** Built-in React UI (`/dashboard`) with module coverage heatmaps.
 
-## Setup Instructions
+## Setup & Installation
 
-1. **Start the Database**
-   ```bash
-   docker-compose up -d
-   ```
+### 1. Infrastructure (Docker)
+We use `ankane/pgvector` for a pre-configured vector database.
+```bash
+docker-compose up -d
+```
 
-2. **Install Dependencies**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
+### 2. Environment Configuration
+Copy `.env.example` to `.env` and configure your providers:
+- **`EMBEDDING_PROVIDER`**: `openai` or `local` (uses sentence-transformers).
+- **`LLM_PROVIDER`**: `openai`, `anthropic`, or `local` (expects Ollama on localhost:11434).
+- **`API_KEY_SECRET`**: Your master key for the memory layer.
 
-3. **Configure Environment**
-   Copy `.env.example` to `.env` and set your API keys and provider preferences.
+### 3. Application Setup
+```bash
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
 
 ## Usage
 
-### 1. The Dashboard
-Run the server and visit `http://localhost:8000/dashboard` to see the React-based memory health heatmap.
-```bash
-uvicorn src.main:app --reload --port 8000
-```
-
-### 2. Python SDK
+### Ingesting Your First Repository
+Use the Python SDK to start building the "brain" of your project:
 ```python
 from sdk import MemoryClient
 
-client = MemoryClient(base_url="http://localhost:8000", api_key="my-dev-api-key-123")
+client = MemoryClient(base_url="http://localhost:8000", api_key="your-secret-key")
 
-# Ingest a repo
-client.ingest("/path/to/repo", project_id="acme-backend")
-
-# Ask the AI brain
-memories = client.recall("Why did we choose Kafka?", project_id="acme-backend")
-for m in memories:
-    print(f"Confidence: {m['confidence']} | {m['content']}")
+# Ingest last 50 commits from a repo
+client.ingest("/path/to/project", project_id="my-app", max_commits=50)
 ```
 
-### 3. MCP Server (For Cursor/Claude Desktop)
-Configure your agent to run:
+### Intelligent Recall
+```python
+# The engine will use hybrid search to find the best match
+results = client.recall("How do we handle database migrations?", project_id="my-app")
+for m in results:
+    print(f"[{m['module']}] Confidence: {m['confidence']}\n{m['content']}")
+```
+
+### Agent Integration (MCP)
+Point your AI agent (Cursor/Claude Desktop) to:
 ```bash
 python src/mcp_server.py
 ```
 
-### 4. Running Tests
-We use `pytest` for automated testing.
+## Testing & Quality
+The project maintains 100% PEP 8 compliance and is verified via automated CI.
 ```bash
+# Run the test suite
 python -m pytest tests/
-```
 
-## Next Steps
-- Add GitHub Webhook integration for automatic PR/Issue ingestion.
-- Implement graph-based relationship mappings (e.g., Module A depends on Module B).
+# Run the local test harness
+python tests/harness.py
+```
