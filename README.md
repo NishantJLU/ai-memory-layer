@@ -1,6 +1,6 @@
 # AI Memory Layer
 
-![Python CI](https://github.com/NishantJLU/ai-memory-layer/actions/workflows/python-ci.yml/badge. those)
+![Python CI](https://github.com/NishantJLU/ai-memory-layer/actions/workflows/python-ci.yml/badge.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 The **AI Memory Layer** is a production-ready "Postgres for AI agent memory." It provides a persistent, semantic, and secure infrastructure that gives any AI coding assistant (Cursor, Claude Code, Copilot) true long-term memory about your project and organization.
