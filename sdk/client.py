@@ -1,6 +1,7 @@
 import httpx
 from typing import List, Dict, Any
 
+
 class MemoryClient:
     def __init__(self, base_url: str = "http://localhost:8000", api_key: str = None):
         """
@@ -8,7 +9,7 @@ class MemoryClient:
         """
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
-        
+
         self.headers = {
             "Content-Type": "application/json"
         }

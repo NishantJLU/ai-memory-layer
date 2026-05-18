@@ -21,17 +21,17 @@ class Memory(Base):
     date = Column(DateTime, default=datetime.utcnow)
 
     # Taxonomy Metadata
-    memory_type = Column(String(50), nullable=False, default="semantic") # episodic, semantic, procedural
-    module = Column(String(100), nullable=True) # e.g. auth, payments
-    source = Column(String(50), nullable=False, default="git") # git, pr, conversation, direct
-    confidence = Column(Float, nullable=False, default=1.0) # 0.0 to 1.0
+    memory_type = Column(String(50), nullable=False, default="semantic")  # episodic, semantic, procedural
+    module = Column(String(100), nullable=True)  # e.g. auth, payments
+    source = Column(String(50), nullable=False, default="git")  # git, pr, conversation, direct
+    confidence = Column(Float, nullable=False, default=1.0)  # 0.0 to 1.0
     is_overridden = Column(Boolean, nullable=False, default=False)
-    
+
     tags = Column(JSON, nullable=True)
 
     # Note: Using 384 for local models (all-MiniLM-L6-v2), or 1536 for OpenAI.
     embedding = Column(Vector, nullable=False)
-    
+
     # TSVector for full-text search (BM25 equivalent in Postgres)
     # We use Computed to auto-populate it from the content
     search_vector = Column(TSVECTOR, Computed("to_tsvector('english', content)", persisted=True))

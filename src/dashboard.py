@@ -53,11 +53,15 @@ async def get_dashboard():
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                             <div className="bg-white p-6 rounded-lg shadow border border-gray-100">
-                                <h2 className="text-gray-500 text-sm font-semibold uppercase tracking-wider mb-2">Total Memories</h2>
+                                <h2 className="text-gray-500 text-sm font-semibold uppercase tracking-wider mb-2">
+                                    Total Memories
+                                </h2>
                                 <p className="text-4xl font-bold text-indigo-600">{{stats.total}}</p>
                             </div>
                             <div className="bg-white p-6 rounded-lg shadow border border-gray-100">
-                                <h2 className="text-gray-500 text-sm font-semibold uppercase tracking-wider mb-2">Flagged Conflicts</h2>
+                                <h2 className="text-gray-500 text-sm font-semibold uppercase tracking-wider mb-2">
+                                    Flagged Conflicts
+                                </h2>
                                 <p className="text-4xl font-bold text-red-500">{{stats.conflicts}}</p>
                             </div>
                         </div>
@@ -65,20 +69,29 @@ async def get_dashboard():
                         <div className="bg-white p-6 rounded-lg shadow border border-gray-100">
                             <h2 className="text-xl font-bold text-gray-800 mb-4">Module Coverage Heatmap</h2>
                             <div className="space-y-4">
-                                {{Object.entries(stats.modules).map(([mod, count]) => (
-                                    <div key={{mod}} className="flex items-center">
-                                        <div className="w-32 text-sm font-medium text-gray-600 truncate">{{mod}}</div>
-                                        <div className="flex-1 ml-4 bg-gray-100 rounded-full h-4 overflow-hidden">
-                                            <div
-                                                className="bg-indigo-500 h-full rounded-full"
-                                                style={{{{ width: `${{Math.min(100, (count / Math.max(1, stats.total)) * 100)}}%` }}}}
-                                            ></div>
+                                {{Object.entries(stats.modules).map(([mod, count]) => {{
+                                    const percentage = (count / Math.max(1, stats.total)) * 100;
+                                    return (
+                                        <div key={{mod}} className="flex items-center">
+                                            <div className="w-32 text-sm font-medium text-gray-600 truncate">
+                                                {{mod}}
+                                            </div>
+                                            <div className="flex-1 ml-4 bg-gray-100 rounded-full h-4 overflow-hidden">
+                                                <div
+                                                    className="bg-indigo-500 h-full rounded-full"
+                                                    style={{{{ width: `${{Math.min(100, percentage)}}%` }}}}
+                                                ></div>
+                                            </div>
+                                            <div className="ml-4 text-sm text-gray-500 w-8 text-right">
+                                                {{count}}
+                                            </div>
                                         </div>
-                                        <div className="ml-4 text-sm text-gray-500 w-8 text-right">{{count}}</div>
-                                    </div>
-                                ))}}
+                                    );
+                                }})}}
                             </div>
-                            {{Object.keys(stats.modules).length === 0 && <p className="text-gray-500 text-sm italic">No modules recorded yet.</p>}}
+                            {{Object.keys(stats.modules).length === 0 && (
+                                <p className="text-gray-500 text-sm italic">No modules recorded yet.</p>
+                            )}}
                         </div>
                     </div>
                 );
