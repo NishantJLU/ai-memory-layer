@@ -10,11 +10,13 @@ The **AI Memory Layer** is a production-ready "Postgres for AI agent memory." It
 
 ---
 
-## 🚀 What's New in v1.1
-- **Fully Asynchronous Core:** Built on FastAPI with `async/await` throughout the entire stack.
-- **High-Performance Database Layer:** Powered by `asyncpg` for non-blocking PostgreSQL interactions.
-- **Optimized Hybrid Search:** Advanced re-ranking combining **Vector Similarity (pgvector)** + **Full-Text Search (tsvector)** + **Exponential Recency Decay**.
-- **Robust Configuration:** Pydantic-validated environment management for enterprise stability.
+## 🚀 Enterprise Features (v1.2)
+- **🧠 AST-Aware Ingestion:** Uses **Tree-Sitter** to parse code into structural context, capturing function signatures and architectural patterns rather than just text diffs.
+- **⚡ HNSW Vector Indexing:** Sub-millisecond vector search at scale using Hierarchical Navigable Small World indexes in `pgvector`.
+- **🏎️ Semantic Caching:** Redis-backed caching layer that intelligently stores and retrieves common queries to reduce LLM latency and costs.
+- **🔭 Full Observability:** **OpenTelemetry** instrumentation for FastAPI and LLM calls, providing deep tracing into retrieval scores and cost monitoring.
+- **🛡️ Memory Consolidation:** A background self-healing process that distills redundant micro-memories into high-level architectural insights.
+- **🤖 CI/CD Integration:** Drop-in **GitHub Action** templates for automated project brain synchronization on every push.
 
 ---
 

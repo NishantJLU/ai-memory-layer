@@ -42,14 +42,21 @@ async def detect_conflict(new_memory_text: str, project_id: str, db: AsyncSessio
     return result
 
 
+from src.parser import get_diff_structural_context
+
+
 async def summarize_commit(commit_msg: str, diff: str) -> dict | None:
     """
     Uses LLM to summarize the key architectural/coding decision from a commit.
     Returns structured JSON with memory_type, module, and content.
     """
+    structural_context = get_diff_structural_context(diff)
+    
     prompt = f"""
 Analyze the following Git commit message and code diff.
 Determine if there is a meaningful architectural, design, or coding convention decision being made here.
+{f'Structural Context (AST): {structural_context}' if structural_context else ''}
+
 If it is just a trivial typo fix or routine update, reply exactly with '{{"memory": "NO_MEMORY"}}'.
 If it is meaningful, return a valid JSON object with the following keys:
 - "memory": concise, standalone summary of the decision and why it was made.

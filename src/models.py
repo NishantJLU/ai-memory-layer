@@ -39,4 +39,11 @@ class Memory(Base):
     __table_args__ = (
         UniqueConstraint('project_id', 'content_hash', name='uq_project_content_hash'),
         Index('ix_memories_search_vector', 'search_vector', postgresql_using='gin'),
+        Index(
+            'ix_memories_embedding_hnsw',
+            'embedding',
+            postgresql_using='hnsw',
+            postgresql_with={'m': 16, 'ef_construction': 64},
+            postgresql_ops={'embedding': 'vector_cosine_ops'}
+        ),
     )

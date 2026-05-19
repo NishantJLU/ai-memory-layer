@@ -8,11 +8,24 @@ from src.ingest import ingest_repository
 from src.recall import recall_memories
 from src.dashboard import router as dashboard_router
 from src.config import settings
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+# Setup OpenTelemetry
+provider = TracerProvider()
+processor = BatchSpanProcessor(ConsoleSpanExporter())
+provider.add_span_processor(processor)
+trace.set_tracer_provider(provider)
 
 # Initialize database (create extensions and tables)
 init_db()
 
 app = FastAPI(title="AI Memory Layer", version="1.1.0")
+
+# Instrument FastAPI
+FastAPIInstrumentor.instrument_app(app)
 
 app.include_router(dashboard_router)
 

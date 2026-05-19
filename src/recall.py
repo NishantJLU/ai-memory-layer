@@ -26,18 +26,30 @@ def calculate_recency_score(memory_date: datetime, decay_rate: float = 0.01) -> 
     return math.exp(-decay_rate * days_old)
 
 
+from src.cache import get_cached_recall, set_cached_recall
+
+
 async def recall_memories(query: str, project_id: str = "default", limit: int = 5, db: AsyncSession = None) -> list[dict]:
     """
     Searches the memory layer for relevant past decisions using HYBRID search.
     Combining Vector Similarity (pgvector) + Full-Text Search (tsvector/BM25)
     + Recency Decay.
     """
+    # Check Cache First
+    cached = get_cached_recall(project_id, query)
+    if cached:
+        return cached[:limit]
+
     if db is None:
         from src.database import AsyncSessionLocal
         async with AsyncSessionLocal() as session:
-            return await _recall_logic(query, project_id, limit, session)
+            results = await _recall_logic(query, project_id, limit, session)
     else:
-        return await _recall_logic(query, project_id, limit, db)
+        results = await _recall_logic(query, project_id, limit, db)
+    
+    # Cache the results
+    set_cached_recall(project_id, query, results)
+    return results
 
 
 async def _recall_logic(query: str, project_id: str, limit: int, db: AsyncSession) -> list[dict]:
