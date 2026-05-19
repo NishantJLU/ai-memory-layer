@@ -38,9 +38,9 @@ def run_test_harness():
         return
 
     # 3. Run ingestion
-    print(f"\n2. Running Ingestion on {test_repo_path} (limit 5 commits)...")
+    print(f"\n2. Running Ingestion on {test_repo_path} (limit 20 commits)...")
     try:
-        count = ingest_repository(test_repo_path, project_id="test_harness", max_commits=5)
+        count = ingest_repository(test_repo_path, project_id="test_harness", max_commits=20)
         print(f"Ingestion complete. Extracted {count} memories.")
     except Exception as e:
         print(f"Ingestion failed: {e}")
@@ -52,6 +52,7 @@ def run_test_harness():
     # 4. Test Recall
     print("\n3. Testing Recall Engine...")
     test_queries = [
+        "Massive architectural upgrade",
         "What are the main database models we defined?",
         "How is the MCP server set up?",
         "Did we make any decisions about the vector database used?"
@@ -62,6 +63,12 @@ def run_test_harness():
         results = recall_memories(query, project_id="test_harness", limit=2)
         if not results:
             print("  -> No results found.")
+            # Debugging: check if any memories exist for this project
+            from src.database import get_db
+            from src.models import Memory
+            db = next(get_db())
+            count = db.query(Memory).filter(Memory.project_id == "test_harness").count()
+            print(f"     (Debug: {count} memories exist for project 'test_harness')")
         else:
             for r in results:
                 print(f"  -> Score Match: {r['id']} (Commit: {r['commit_hash'][:7]})")

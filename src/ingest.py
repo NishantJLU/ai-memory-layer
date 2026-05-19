@@ -1,8 +1,9 @@
 import json
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from git import Repo
-from src.database import get_db
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from src.models import Memory
 from src.providers import get_embedding, generate_summary
 from sqlalchemy.exc import IntegrityError
@@ -14,13 +15,11 @@ def generate_content_hash(project_id: str, commit_hash: str, text: str) -> str:
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
-def detect_conflict(new_memory_text: str, project_id: str) -> str | None:
+async def detect_conflict(new_memory_text: str, project_id: str, db: AsyncSession) -> str | None:
     """Checks if the new memory contradicts existing memories in the DB."""
-    # For a real system, we'd do a quick recall here and ask the LLM.
-    # To keep MVP simple but functional, we do a basic semantic search first.
     from src.recall import recall_memories
     # Just a light check of top 2
-    past_memories = recall_memories(new_memory_text, project_id=project_id, limit=2)
+    past_memories = await recall_memories(new_memory_text, project_id=project_id, limit=2, db=db)
     if not past_memories:
         return None
 
@@ -37,13 +36,13 @@ def detect_conflict(new_memory_text: str, project_id: str) -> str | None:
     If no, reply exactly with "NO_CONFLICT".
     """
 
-    result = generate_summary(prompt, "You are a strict architectural reviewer.")
+    result = await generate_summary(prompt, "You are a strict architectural reviewer.")
     if "NO_CONFLICT" in result:
         return None
     return result
 
 
-def summarize_commit(commit_msg: str, diff: str) -> dict | None:
+async def summarize_commit(commit_msg: str, diff: str) -> dict | None:
     """
     Uses LLM to summarize the key architectural/coding decision from a commit.
     Returns structured JSON with memory_type, module, and content.
@@ -64,7 +63,7 @@ Diff snippet (truncated to 2000 chars):
 {diff[:2000]}
     """
 
-    content = generate_summary(prompt, "You are an expert AI architect. Always reply in valid JSON.")
+    content = await generate_summary(prompt, "You are an expert AI architect. Always reply in valid JSON.")
 
     try:
         # Sometimes LLMs wrap JSON in markdown blocks
@@ -82,8 +81,7 @@ Diff snippet (truncated to 2000 chars):
         return None
 
 
-def ingest_repository(repo_path: str, project_id: str = "default", max_commits: int = 10):
-    db = next(get_db())
+async def ingest_repository(repo_path: str, db: AsyncSession, project_id: str = "default", max_commits: int = 10):
     repo = Repo(repo_path)
     commits = list(repo.iter_commits('HEAD', max_count=max_commits))
 
@@ -97,7 +95,7 @@ def ingest_repository(repo_path: str, project_id: str = "default", max_commits: 
             else:
                 diff_text = repo.git.show(commit.hexsha)
 
-            structured_data = summarize_commit(commit.message, diff_text)
+            structured_data = await summarize_commit(commit.message, diff_text)
 
             if structured_data:
                 summary = structured_data.get("memory")
@@ -107,16 +105,17 @@ def ingest_repository(repo_path: str, project_id: str = "default", max_commits: 
                 content_hash = generate_content_hash(project_id, commit.hexsha, summary)
 
                 # Deduplication check
-                existing = db.query(Memory).filter(Memory.content_hash == content_hash).first()
+                result = await db.execute(select(Memory).filter(Memory.content_hash == content_hash))
+                existing = result.scalars().first()
                 if existing:
                     continue
 
                 # Conflict Check
-                conflict_reason = detect_conflict(summary, project_id)
+                conflict_reason = await detect_conflict(summary, project_id, db)
                 confidence = 0.5 if conflict_reason else 1.0
 
                 touched_files = list(commit.stats.files.keys())
-                embedding = get_embedding(summary)
+                embedding = await get_embedding(summary)
 
                 memory = Memory(
                     project_id=project_id,
@@ -125,7 +124,7 @@ def ingest_repository(repo_path: str, project_id: str = "default", max_commits: 
                     content=summary,
                     file_paths=touched_files,
                     author=f"{commit.author.name} <{commit.author.email}>",
-                    date=datetime.fromtimestamp(commit.committed_date),
+                    date=datetime.fromtimestamp(commit.committed_date, tz=timezone.utc),
                     memory_type=mem_type,
                     module=module,
                     source="git",
@@ -134,7 +133,7 @@ def ingest_repository(repo_path: str, project_id: str = "default", max_commits: 
                     embedding=embedding
                 )
                 db.add(memory)
-                db.commit()
+                await db.commit()
                 ingested_count += 1
                 print(f"Ingested commit {commit.hexsha[:7]}: {summary[:50]}...")
                 if conflict_reason:
@@ -142,9 +141,9 @@ def ingest_repository(repo_path: str, project_id: str = "default", max_commits: 
 
         except IntegrityError:
             # DB level deduplication catch
-            db.rollback()
+            await db.rollback()
         except Exception as e:
             print(f"Failed to process commit {commit.hexsha}: {e}")
-            db.rollback()
+            await db.rollback()
 
     return ingested_count

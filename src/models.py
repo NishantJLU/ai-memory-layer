@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, Float, Boolean, UniqueConstraint, Computed, Index
 from sqlalchemy.dialects.postgresql import TSVECTOR
 from pgvector.sqlalchemy import Vector
@@ -18,7 +18,7 @@ class Memory(Base):
     content = Column(Text, nullable=False)  # The summarized decision
     file_paths = Column(JSON, nullable=False)  # List of files touched
     author = Column(String(255), nullable=True)
-    date = Column(DateTime, default=datetime.utcnow)
+    date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Taxonomy Metadata
     memory_type = Column(String(50), nullable=False, default="semantic")  # episodic, semantic, procedural

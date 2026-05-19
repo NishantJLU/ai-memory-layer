@@ -1,29 +1,34 @@
 import json
 from fastapi.responses import HTMLResponse
-from fastapi import APIRouter
-from src.database import get_db
+from fastapi import APIRouter, Depends
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from src.database import get_async_db
 from src.models import Memory
 
 router = APIRouter()
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
-async def get_dashboard():
+async def get_dashboard(db: AsyncSession = Depends(get_async_db)):
     """
     A dead-simple React page served directly to visualize Memory Health.
     """
-    db = next(get_db())
-
     # Calculate simple stats
-    total_memories = db.query(Memory).count()
-    conflict_count = db.query(Memory).filter(Memory.confidence < 1.0).count()
+    total_result = await db.execute(select(func.count(Memory.id)))
+    total_memories = total_result.scalar() or 0
+
+    conflict_result = await db.execute(select(func.count(Memory.id)).filter(Memory.confidence < 1.0))
+    conflict_count = conflict_result.scalar() or 0
 
     # Calculate module coverage
-    modules = db.query(Memory.module).all()
+    module_result = await db.execute(select(Memory.module))
+    modules = module_result.scalars().all()
+    
     module_counts = {}
-    for m in modules:
-        mod = m[0] or "unknown"
-        module_counts[mod] = module_counts.get(mod, 0) + 1
+    for mod in modules:
+        m_name = mod or "unknown"
+        module_counts[m_name] = module_counts.get(m_name, 0) + 1
 
     stats = {
         "total": total_memories,

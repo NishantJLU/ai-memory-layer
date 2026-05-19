@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "unity-pro": {
+      "command": "node",
+      "args": [
+        ".\\Unity-MCP-Local\\unity-mcp-server\\index.js"
+      ],
+      "trust": true
+    },
+    "memory-layer": {
+      "command": ".\\venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "src.mcp_server"
+      ],
+      "trust": true
+    }
+  }
+}

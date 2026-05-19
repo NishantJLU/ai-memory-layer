@@ -2,18 +2,17 @@ import os
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Security, Depends
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel
-from src.database import init_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from src.database import init_db, get_async_db, AsyncSessionLocal
 from src.ingest import ingest_repository
 from src.recall import recall_memories
 from src.dashboard import router as dashboard_router
-from dotenv import load_dotenv
-
-load_dotenv()
+from src.config import settings
 
 # Initialize database (create extensions and tables)
 init_db()
 
-app = FastAPI(title="AI Memory Layer", version="1.0.0")
+app = FastAPI(title="AI Memory Layer", version="1.1.0")
 
 app.include_router(dashboard_router)
 
@@ -23,8 +22,7 @@ api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 
 async def get_api_key(api_key_header: str = Security(api_key_header)):
-    expected_key = os.getenv("API_KEY_SECRET", "super-secret-key-change-me-in-prod")
-    if api_key_header == expected_key:
+    if api_key_header == settings.API_KEY_SECRET:
         return api_key_header
     raise HTTPException(status_code=403, detail="Could not validate API Key")
 
@@ -47,17 +45,22 @@ class RecallRequest(BaseModel):
 
 
 @app.post("/ingest", response_model=IngestResponse)
-async def trigger_ingestion(request: IngestRequest, background_tasks: BackgroundTasks, api_key: str = Depends(get_api_key)):
+async def trigger_ingestion(
+    request: IngestRequest, 
+    background_tasks: BackgroundTasks, 
+    api_key: str = Depends(get_api_key)
+):
     """
     Trigger the git parser to ingest a local repository in the background.
     """
     if not os.path.exists(request.repo_path):
         raise HTTPException(status_code=400, detail="Repository path does not exist")
 
-    def _run_ingest():
+    async def _run_ingest():
         print(f"Starting ingestion for {request.repo_path} (Project: {request.project_id})")
-        count = ingest_repository(request.repo_path, request.project_id, request.max_commits)
-        print(f"Ingestion complete. Added {count} new memories.")
+        async with AsyncSessionLocal() as db:
+            count = await ingest_repository(request.repo_path, db, request.project_id, request.max_commits)
+            print(f"Ingestion complete. Added {count} new memories.")
 
     background_tasks.add_task(_run_ingest)
     return IngestResponse(
@@ -67,11 +70,15 @@ async def trigger_ingestion(request: IngestRequest, background_tasks: Background
 
 
 @app.post("/recall")
-async def recall(request: RecallRequest, api_key: str = Depends(get_api_key)):
+async def recall(
+    request: RecallRequest, 
+    db: AsyncSession = Depends(get_async_db),
+    api_key: str = Depends(get_api_key)
+):
     """
     Search memories by semantic similarity, filtered by project.
     """
-    memories = recall_memories(request.query, request.project_id, request.limit)
+    memories = await recall_memories(request.query, request.project_id, request.limit, db=db)
     return {"results": memories}
 
 

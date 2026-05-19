@@ -5,6 +5,12 @@
 
 The **AI Memory Layer** is a production-ready "Postgres for AI agent memory." It provides a persistent, semantic, and secure infrastructure that gives any AI coding assistant (Cursor, Claude Code, Copilot) true long-term memory about your project and organization.
 
+## What's New in v1.1
+- **Fully Asynchronous Core:** Built on FastAPI with `async/await` throughout the stack (LLM calls, Embeddings, Database).
+- **High-Performance Database Layer:** Switched to `asyncpg` for non-blocking PostgreSQL interactions.
+- **Optimized Hybrid Search:** Push-down scoring for Vector + Keyword + Recency directly into SQL.
+- **Robust Configuration:** Pydantic-validated environment management.
+
 ## Why AI Memory Layer?
 While generic memory tools exist, **AI Memory Layer is purpose-built for enterprise software engineering:**
 1. **Zero Lock-In:** Run entirely locally using `sentence-transformers` and **Ollama**, or scale with OpenAI/Anthropic.

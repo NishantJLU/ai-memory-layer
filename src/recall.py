@@ -1,7 +1,7 @@
 import math
-from datetime import datetime
-from sqlalchemy import func, or_
-from src.database import get_db
+from datetime import datetime, timezone
+from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from src.models import Memory
 from src.providers import get_embedding
 
@@ -14,7 +14,11 @@ def calculate_recency_score(memory_date: datetime, decay_rate: float = 0.01) -> 
     if not memory_date:
         return 0.5  # Unknown age gets middle penalty
 
-    days_old = (datetime.utcnow() - memory_date).days
+    # Ensure memory_date is timezone-aware if it's not already
+    if memory_date.tzinfo is None:
+        memory_date = memory_date.replace(tzinfo=timezone.utc)
+        
+    days_old = (datetime.now(timezone.utc) - memory_date).days
     if days_old < 0:
         days_old = 0
 
@@ -22,15 +26,23 @@ def calculate_recency_score(memory_date: datetime, decay_rate: float = 0.01) -> 
     return math.exp(-decay_rate * days_old)
 
 
-def recall_memories(query: str, project_id: str = "default", limit: int = 5) -> list[dict]:
+async def recall_memories(query: str, project_id: str = "default", limit: int = 5, db: AsyncSession = None) -> list[dict]:
     """
     Searches the memory layer for relevant past decisions using HYBRID search.
     Combining Vector Similarity (pgvector) + Full-Text Search (tsvector/BM25)
     + Recency Decay.
     """
-    db = next(get_db())
+    if db is None:
+        from src.database import AsyncSessionLocal
+        async with AsyncSessionLocal() as session:
+            return await _recall_logic(query, project_id, limit, session)
+    else:
+        return await _recall_logic(query, project_id, limit, db)
+
+
+async def _recall_logic(query: str, project_id: str, limit: int, db: AsyncSession) -> list[dict]:
     try:
-        query_embedding = get_embedding(query)
+        query_embedding = await get_embedding(query)
 
         # Build Full-Text Query
         ft_query = func.websearch_to_tsquery('english', query)
@@ -41,7 +53,7 @@ def recall_memories(query: str, project_id: str = "default", limit: int = 5) -> 
         text_score = func.ts_rank(Memory.search_vector, ft_query)
 
         # Filter by project and (vector similarity OR keyword match)
-        candidates = db.query(
+        stmt = select(
             Memory,
             vector_score.label("v_score"),
             text_score.label("t_score")
@@ -52,7 +64,10 @@ def recall_memories(query: str, project_id: str = "default", limit: int = 5) -> 
                 Memory.embedding.cosine_distance(query_embedding) < 0.5,  # High vector match
                 Memory.search_vector.op('@@')(ft_query)                  # OR Keyword match
             )
-        ).all()
+        )
+        
+        result = await db.execute(stmt)
+        candidates = result.all()
 
         scored_memories = []
         for mem, v_s, t_s in candidates:
@@ -94,4 +109,6 @@ def recall_memories(query: str, project_id: str = "default", limit: int = 5) -> 
         return memories
     except Exception as e:
         print(f"Error recalling memories: {e}")
+        import traceback
+        traceback.print_exc()
         return []
